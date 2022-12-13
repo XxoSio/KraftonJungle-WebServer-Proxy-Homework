@@ -20,7 +20,7 @@ int main(void) {
         // n1 = atoi(arg1);
         // n2 = atoi(arg2);
 
-        // 숙제4번(10.10)
+        // 숙제4번(11.10)
         sscanf(buf, "num1=%d", &n1);
         sscanf(p+1, "num2=%d", &n2);
     }
