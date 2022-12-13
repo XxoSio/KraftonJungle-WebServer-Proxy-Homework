@@ -1,2 +1,2 @@
-# KraftonJungle-WebServer-Proxy-Homework
-KraftonJungle-WebServer-Proxy-Homework
+# KraftonJungle-WebServer-Tiny-Homework
+KraftonJungle-WebServer-Tiny-Homework
