@@ -8,14 +8,13 @@
  */
 #include "csapp.h"
 
-void doit(int fd, char *host, char *port);
+void doit(int fd);
 void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
+void serve_static(int fd, char *filename, int filesize, char* method);
 void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
-void clienterror(int fd, char *cause, char *errnum, char *shortmsg,
-                 char *longmsg);
+void serve_dynamic(int fd, char *filename, char *cgiargs, char* method);
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void wait_childproc(int sig);
 
 int main(int argc, char **argv)
@@ -41,7 +40,7 @@ int main(int argc, char **argv)
     Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE,
                 0);
     printf("Accepted connection from (%s, %s)\n", hostname, port);
-    doit(connfd, hostname, port);  // line:netp:tiny:doit/ HEAD 메서드 처리를 위해 hostname, port를 넘긴다.
+    doit(connfd);  // line:netp:tiny:doit
     Close(connfd); // line:netp:tiny:close
   }
 }
@@ -49,7 +48,7 @@ int main(int argc, char **argv)
 /*
   TINY doit은 한 개의 HTTP 트랜잭션을 처리한다.
 */
-void doit(int fd, char *hostname, char *port)
+void doit(int fd)
 {
   int is_static;
   struct stat sbuf;
@@ -65,24 +64,8 @@ void doit(int fd, char *hostname, char *port)
   sscanf(buf, "%s %s %s", method, uri, version);
 
   // GET 요청 읽고 처리
-  if (!strcasecmp(method, "GET")){
-    
-  }
-  else if (!strcasecmp(method, "HEAD"))
-  { /* HEAD 메서드 과정
-       METHOD, URI, HTTP VERSION
-      HOSTNAME, PORT를 출력한다.
-   */
-    char new_buf[MAXLINE];
-    sprintf(new_buf, "%s %s %s \r\n", method, uri, version);
-    Rio_writen(fd, new_buf, strlen(new_buf));
-    
-    sprintf(new_buf, "%s %s \r\n", hostname, port);
-    Rio_writen(fd, new_buf, strlen(new_buf));
-    
-  }
-  else
-  {
+  // 숙제 5(11.11)_1 - HEAD 요청 읽고 처리 추가
+  if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD")){
     // 501은 해당 method를 지원하지 않는다는 의미.
     clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
     return;
@@ -115,7 +98,7 @@ void doit(int fd, char *hostname, char *port)
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
       return;
     }
-    serve_static(fd, filename, sbuf.st_size);
+    serve_static(fd, filename, sbuf.st_size, method);
   }
   else /* Serve dynamic content */
   { 
@@ -128,7 +111,7 @@ void doit(int fd, char *hostname, char *port)
       clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
       return;
     }
-    serve_dynamic(fd, filename, cgiargs);
+    serve_dynamic(fd, filename, cgiargs, method);
   }
 
 }
@@ -221,7 +204,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs)
 }
 
 /* Tiny serve_static은 정적 컨텐츠를 클라이언트에게 서비스한다. */
-void serve_static(int fd, char *filename, int filesize)
+void serve_static(int fd, char *filename, int filesize, char* method)
 {
   int srcfd;
   char *srcp, filetype[MAXLINE], buf[MAXBUF];
@@ -239,16 +222,23 @@ void serve_static(int fd, char *filename, int filesize)
   printf("Response headers:\n");
   printf("%s", buf);
 
+  // 숙제 5(11.11)_2
+  // 정적 HEAD 처리, method 받아올 것
+  if (!strcasecmp(method, "HEAD")){
+    return;
+  }
+
   /* Send response body to client */
   // 해당 디렉토리 내에서 filename의 파일을 찾아서(읽기 전용) 디스크립터 반환 
   // 파일을 메모리에 매핑시킨다.
   srcfd = Open(filename, O_RDONLY, 0);
+
+  // 숙제 3번(11.9)
   void *src_buf = malloc(filesize);
   Rio_readn(srcfd, src_buf, filesize);
   Close(srcfd);
   Rio_writen(fd, src_buf, filesize);
   free(src_buf);
-
   
   /*srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
     Close(srcfd);
@@ -271,6 +261,7 @@ void get_filetype(char *filename, char *filetype)
     strcpy(filetype, "image/png");
   else if (strstr(filename, ".jpg"))
     strcpy(filetype, "image/jpeg");
+  // 숙제 2번(11.7)
   else if (strstr(filename, ".mp4"))
     strcpy(filetype, "video/mp4");  
   else if (strstr(filename, ".mpg"))
@@ -280,7 +271,7 @@ void get_filetype(char *filename, char *filetype)
 }
 
 /* Tiny serve_dynamic은 동적콘텐츠를 클라이언트에 제공한다. */
-void serve_dynamic(int fd, char *filename, char *cgiargs)
+void serve_dynamic(int fd, char *filename, char *cgiargs, char* method)
 {
   char buf[MAXLINE], *emptylist[] = { NULL };
   /* Return first part of HTTP response */
@@ -288,6 +279,13 @@ void serve_dynamic(int fd, char *filename, char *cgiargs)
   Rio_writen(fd, buf, strlen(buf));
   sprintf(buf, "Server: Tiny Web Server\r\n");
   Rio_writen(fd, buf, strlen(buf));
+
+  // 숙제 5(11.11)_3
+  // 동적 HEAD 처리, method 받아올 것
+  if (!strcasecmp(method,"HEAD")){
+    return;
+  }
+
   // 자식 프로세스를 생성
   if (Fork() == 0) 
   { /* Child */
